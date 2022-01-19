@@ -95,12 +95,49 @@ class AsanaTaskApi {
   }
 
   // 指定したタスクを削除する
-  removeTask(task_id){
+  deleteTask(task_id){
     let options = {
       'headers': this.headers, 
       'method': 'delete',
     }
     UrlFetchApp.fetch(this.base+'/tasks/'+task_id, options)
   }
+}
 
+function test() {
+  const PROJECT_ID = PropertiesService.getScriptProperties().getProperty('PROJECT_ID')
+  const ACCESS_TOKEN = PropertiesService.getScriptProperties().getProperty('ACCESS_TOKEN')
+  const USER_ID = PropertiesService.getScriptProperties().getProperty('USER_ID')
+  const SECTION_ID_TODO = PropertiesService.getScriptProperties().getProperty('SECTION_ID_TODO')
+  const SECTION_ID_SUCCESS = PropertiesService.getScriptProperties().getProperty('SECTION_ID_SUCCESS')
+  const SECTION_ID_FAILED = PropertiesService.getScriptProperties().getProperty('SECTION_ID_FAILED')
+  let taskApi = new AsanaTaskApi(ACCESS_TOKEN, PROJECT_ID)
+  let task_due_at = new Date('2022-01-16T16:00:00')
+  taskApi.createTask({'data':{
+    'name': 'API test!!',
+    'notes': 'Asana Apiによって追加されました',
+    'assignee': USER_ID,
+    'due_at': Utilities.formatDate(task_due_at, "GMT", "yyyy-MM-dd'T'HH:mm:ssZ")
+  }})
+  let result = taskApi.getOverDueTask(SECTION_ID_TODO)
+  result.map(id=>{
+    console.log({id})
+    taskApi.changeStatus(id, SECTION_ID_FAILED)
+    taskApi.deleteTask(id)
+  })
+  
+  // To-Doをお掃除。
+  let todo_ids = taskApi.getTaskBySection(SECTION_ID_TODO)
+  todo_ids.map(id=>taskApi.deleteTask(id))
+
+  // Successをお掃除。
+  let success_ids = taskApi.getTaskBySection(SECTION_ID_SUCCESS)
+  success_ids.map(id=>taskApi.deleteTask(id))
+
+  // 失敗にあるもののうち完了しているものを削除する(前日の失敗したタスクは全て手で完了する)
+  let completed_task_ids = taskApi.getCompletedTask(SECTION_ID_FAILED)
+  console.log({completed_task_ids})
+  if(completed_task_ids.length > 0) {
+    completed_task_ids.map((id)=>{taskApi.deleteTask(id)})
+  }
 }
